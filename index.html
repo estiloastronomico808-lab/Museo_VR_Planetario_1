@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Museo Virtual del Sistema Solar</title>
+
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#05070f">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Museo Solar">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+  :root { --fondo:#05070f; --texto:#e8ecf8; --acento:#ffb347; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--fondo); color:var(--texto);
+         display:flex; flex-direction:column; min-height:100vh; }
+  header { padding:.6rem 1rem; text-align:center; }
+  h1 { font-size:1.2rem; margin:0; }
+  #contador { font-size:.8rem; opacity:.7; }
+  model-viewer { width:100%; flex:1; min-height:55vh; background:radial-gradient(#101830,#05070f); }
+  #info { padding:.8rem 1rem; max-width:40rem; margin:auto; }
+  #info h2 { margin:.2rem 0; color:var(--acento); font-size:1.1rem; }
+  #info p { margin:.2rem 0; font-size:.95rem; line-height:1.4; }
+  nav { display:flex; gap:.5rem; justify-content:center; padding:.8rem; flex-wrap:wrap; }
+  nav button, #btnAR { background:#1a2340; color:var(--texto); border:1px solid #33407a;
+         border-radius:10px; padding:.7rem 1rem; font-size:1rem; cursor:pointer; }
+  nav button:active { background:var(--acento); color:#000; }
+  #btnAR { position:absolute; bottom:12px; right:12px; }
+  .cargando { position:absolute; inset:auto 0 50% 0; text-align:center; }
+
+  #logo-ar {
+    position:absolute;
+    top:calc(12px + env(safe-area-inset-top, 0px));
+    right:calc(12px + env(safe-area-inset-right, 0px));
+    width:clamp(96px, 24vw, 170px);
+    height:auto;
+    z-index:10;
+    pointer-events:none;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.75)) drop-shadow(0 0 8px rgba(0,0,0,.45));
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Museo Virtual: Sistema Solar</h1>
+   <h2></h2>
+  <div id="contador"></div>
+</header>
+
+<model-viewer id="visor"
+  alt="Modelo 3D"
+  camera-controls
+  auto-rotate
+  ar
+  ar-modes="webxr scene-viewer quick-look"
+  ar-scale="auto"
+  shadow-intensity="0"
+  loading="eager"
+  reveal="auto">
+  <button slot="ar-button" id="btnAR">👋 Ver</button>
+  <div slot="progress-bar" class="cargando"></div>
+
+  <!-- Logo del Planetario Digital Chimalhuacán (arriba a la derecha) -->
+  <img id="logo-ar" src="img/logo-planetario.png"
+       alt="Planetario Digital Chimalhuacán" width="640" height="435">
+</model-viewer>
+
+<section id="info">
+  <h2 id="titulo"></h2>
+  <p id="texto"></p>
+  <p id="dato" style="opacity:.75"></p>
+</section>
+
+<nav>
+  <button id="btnAtras">⬅ Atrás</button>
+  <button id="btnInicio">Inicio</button>
+  <button id="btnSiguiente">Siguiente ➡</button>
+  <button id="btnFoto">Foto</button>
+  <!-- Solo aparece cuando el navegador permite instalar la app -->
+  <button id="btnInstalar" hidden>Instalar app</button>
+</nav>
+
+<script>
+
+const piezas = [
+  { id:"sol",      nombre:"Sol (Estrella)", archivo:"SOL.glb",
+    texto:"Bienvenida al museo. Usa Siguiente para recorrer los objetos celestes.", dato:"" },
+  { id:"mercurio", nombre:"Mercurio", archivo:"MER.glb",
+    texto:"El planeta más cercano al Sol y el más pequeño.", dato:"Diámetro: 4 879 km" },
+  { id:"venus",    nombre:"Venus", archivo:"VEN.glb",
+    texto:"Su atmósfera densa atrapa el calor: es el planeta con mayor temperatura del sistema solar.", dato:"Diámetro: 12 104 km" },
+  { id:"tierra",   nombre:"Tierra", archivo:"TIE.glb",
+    texto:"Nuestro hogar, el único mundo con vida conocida.", dato:"Diámetro: 12 742 km" },
+  { id:"luna",     nombre:"La Luna", archivo:"LUN.glb",
+    texto:"Satélite natural de la Tierra", dato:"P" },
+  { id:"marte",    nombre:"Marte", archivo:"MAR.glb",
+    texto:"El planeta rojo, con el volcán más alto: el Monte Olimpo.", dato:"Diámetro: 6 779 km" },
+ /* { id:"asteroides",nombre:"Cinturón de asteroides", archivo:"models/ASTEROIDES.glb",
+    texto:"Millones de rocas entre Marte y Júpiter, restos de la formación del sistema solar.", dato:"" },*/
+  { id:"jupiter",  nombre:"Júpiter", archivo:"JUP.glb",
+    texto:"El gigante gaseoso; su Gran Mancha Roja es una tormenta enorme.", dato:"Diámetro: 139 820 km" },
+  /*{ id:"io",       nombre:"Ío", archivo:"models/IO.glb",
+    texto:"Luna galileana, el cuerpo con más volcanes activos.", dato:"Diámetro: 3 643 km" },
+  { id:"europa",   nombre:"Europa", archivo:"models/EUROPA.glb",
+    texto:"Luna galileana con un océano oculto bajo su hielo.", dato:"Diámetro: 3 122 km" },
+  { id:"ganimedes",nombre:"Ganímedes", archivo:"models/GANIMEDES.glb",
+    texto:"La luna más grande del sistema solar, mayor que Mercurio.", dato:"Diámetro: 5 268 km" },
+  { id:"calisto",  nombre:"Calisto", archivo:"models/CALISTO.glb",
+    texto:"Luna galileana muy craterizada, de superficie antigua.", dato:"Diámetro: 4 821 km" },*/
+  { id:"saturno",  nombre:"Saturno", archivo:"SAT.glb",
+    texto:"Famoso por sus anillos de hielo y roca.", dato:"Diámetro: 116 460 km" },
+  { id:"urano",    nombre:"Urano", archivo:"URA.glb",
+    texto:"Gigante helado que gira 'acostado' sobre su costado.", dato:"Diámetro: 50 724 km" },
+  { id:"neptuno",  nombre:"Neptuno", archivo:"NEP.glb",
+    texto:"El planeta más lejano, con los vientos más veloces.", dato:"Diámetro: 49 244 km" },
+  { id:"pluton",   nombre:"Plutón", archivo:"Pluton4.glb",
+    texto:"Desde 2006 es considerado un planeta enano.", dato:"Antes de 2006 era el noveno planeta" },
+ /* { id:"cometa",   nombre:"Cometa", archivo:"models/COMETA.glb",
+    texto:"Bola de hielo y polvo que desarrolla cola al acercarse al Sol.", dato:"" },
+  { id:"hubble",   nombre:"Telescopio Espacial Hubble", archivo:"models/HUBBLE.glb",
+    texto:"En órbita terrestre desde 1990, nos dio imágenes icónicas del universo.", dato:"Órbita: ~540 km" },*/
+  { id:"xchandra",     nombre:"Telescopio Espacial", archivo:"X.glb",
+    texto:"X Chandra", dato:"Observa en rayos X" },
+  /*{ id:"parker",   nombre:"Sonda Parker", archivo:"models/PARKER.glb",
+    texto:"Se acerca al Sol más que cualquier otra nave para estudiar su corona.", dato:"" }*/
+];
+
+const visor = document.getElementById("visor");
+let actual = 0;
+
+function mostrar(i) {
+  actual = (i + piezas.length) % piezas.length;
+  const p = piezas[actual];
+  visor.src = p.archivo;
+  visor.alt = "Modelo 3D de " + p.nombre;
+  document.getElementById("titulo").textContent = p.nombre;
+  document.getElementById("texto").textContent  = p.texto;
+  document.getElementById("dato").textContent   = p.dato;
+  document.getElementById("contador").textContent = (actual + 1) + " / " + piezas.length;
+  precargar((actual + 1) % piezas.length);
+}
+
+function precargar(i) {
+  fetch(piezas[i].archivo).catch(() => {});
+}
+
+visor.addEventListener("error", () => {
+  document.getElementById("dato").textContent = "⚠ Modelo 3D en construcción";
+});
+
+document.getElementById("btnAtras").onclick     = () => mostrar(actual - 1);
+document.getElementById("btnSiguiente").onclick = () => mostrar(actual + 1);
+document.getElementById("btnInicio").onclick    = () => mostrar(0);
+
+document.getElementById("btnFoto").onclick = async () => {
+  try {
+    const blob = await visor.toBlob({ mimeType: "image/png", idealAspect: true });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "museo-" + piezas[actual].id + ".png";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert("No se pudo tomar la foto. En modo AR usa la captura de pantalla de tu teléfono.");
+  }
+};
+
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((err) =>
+      console.error("No se pudo registrar el service worker:", err));
+  });
+}
+
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().catch(() => {});
+}
+
+let eventoInstalacion = null;
+const btnInstalar = document.getElementById("btnInstalar");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  eventoInstalacion = e;
+  btnInstalar.hidden = false;
+});
+
+btnInstalar.onclick = () => {
+  if (!eventoInstalacion) return;
+  eventoInstalacion.prompt();
+  eventoInstalacion.userChoice.finally(() => {
+    eventoInstalacion = null;
+    btnInstalar.hidden = true;
+  });
+};
+
+window.addEventListener("appinstalled", () => { btnInstalar.hidden = true; });
+
+mostrar(0);
+</script>
+</body>
+</html>
